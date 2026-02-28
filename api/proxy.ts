@@ -8,7 +8,7 @@ app.get('/', async (c) => {
   
   if (!url) {
     return c.json({ error: 'URL parameter required' }, 400);
-n  }
+  }
   
   try {
     const decodedUrl = decodeURIComponent(url);
