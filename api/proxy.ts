@@ -30,6 +30,19 @@ function rewriteM3U8Content(content: string, originalBaseUrl: string, proxyBaseU
   return rewrittenLines.join('\n');
 }
 
+// CORS middleware - applies to ALL responses
+app.use('*', async (c, next) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Range');
+  await next();
+});
+
+// Handle OPTIONS preflight
+app.options('/', (c) => {
+  return c.body(null, 204);
+});
+
 app.get('/', async (c) => {
   const url = c.req.query('url');
   
@@ -44,8 +57,9 @@ app.get('/', async (c) => {
       headers: {
         'Referer': 'https://hianime.to/',
         'Origin': 'https://hianime.to',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
       }
     });
     
@@ -63,14 +77,12 @@ app.get('/', async (c) => {
       
       return c.body(rewrittenBody, 200, {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Access-Control-Allow-Origin': '*',
       });
     }
     
     // For TS segments, etc.
     return c.body(body, 200, {
       'Content-Type': contentType || 'application/octet-stream',
-      'Access-Control-Allow-Origin': '*',
     });
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Unknown' }, 500);
