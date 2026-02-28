@@ -3,6 +3,33 @@ import { handle } from 'hono/vercel';
 
 const app = new Hono().basePath('/api/proxy');
 
+function rewriteM3U8Content(content: string, originalBaseUrl: string, proxyBaseUrl: string): string {
+  const lines = content.split('\n');
+  const rewrittenLines: string[] = [];
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    
+    if (!trimmedLine || trimmedLine.startsWith('#')) {
+      rewrittenLines.push(line);
+      continue;
+    }
+    
+    let segmentUrl = trimmedLine;
+    
+    if (!segmentUrl.startsWith('http://') && !segmentUrl.startsWith('https://')) {
+      const baseUrl = originalBaseUrl.substring(0, originalBaseUrl.lastIndexOf('/') + 1);
+      segmentUrl = baseUrl + segmentUrl;
+    }
+    
+    const encodedSegmentUrl = encodeURIComponent(segmentUrl);
+    const proxiedUrl = `${proxyBaseUrl}?url=${encodedSegmentUrl}`;
+    rewrittenLines.push(proxiedUrl);
+  }
+  
+  return rewrittenLines.join('\n');
+}
+
 app.get('/', async (c) => {
   const url = c.req.query('url');
   
@@ -17,28 +44,36 @@ app.get('/', async (c) => {
       headers: {
         'Referer': 'https://hianime.to/',
         'Origin': 'https://hianime.to',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
       }
     });
     
     if (!response.ok) {
-      const statusCode = response.status as 200 | 400 | 401 | 403 | 404 | 500;
-      return c.json({ error: `Upstream error: ${response.status}` }, statusCode);
+      return c.json({ error: `Upstream error: ${response.status}` }, 500);
     }
     
+    const contentType = response.headers.get('content-type') || '';
     const body = await response.text();
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
     
+    // Check if M3U8 playlist
+    if (contentType.includes('mpegurl') || decodedUrl.endsWith('.m3u8') || body.trim().startsWith('#EXTM3U')) {
+      const proxyBaseUrl = 'https://aniwatch-api-umber.vercel.app/api/proxy';
+      const rewrittenBody = rewriteM3U8Content(body, decodedUrl, proxyBaseUrl);
+      
+      return c.body(rewrittenBody, 200, {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Access-Control-Allow-Origin': '*',
+      });
+    }
+    
+    // For TS segments, etc.
     return c.body(body, 200, {
-      'Content-Type': contentType,
+      'Content-Type': contentType || 'application/octet-stream',
       'Access-Control-Allow-Origin': '*',
     });
   } catch (error) {
-    return c.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    }, 500);
+    return c.json({ error: error instanceof Error ? error.message : 'Unknown' }, 500);
   }
 });
 
