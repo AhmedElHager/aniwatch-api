@@ -30,23 +30,15 @@ function rewriteM3U8Content(content: string, originalBaseUrl: string, proxyBaseU
   return rewrittenLines.join('\n');
 }
 
-// CORS middleware - applies to ALL responses
-app.use('*', async (c, next) => {
+app.get('/', async (c) => {
+  // Set CORS headers on EVERY response
   c.header('Access-Control-Allow-Origin', '*');
   c.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   c.header('Access-Control-Allow-Headers', 'Content-Type, Range');
-  await next();
-});
-
-// Handle OPTIONS preflight
-app.options('/', (c) => {
-  return c.body(null, 204);
-});
-
-app.get('/', async (c) => {
+  
   const url = c.req.query('url');
   
-  if (!url) {
+  if (!url || typeof url !== 'string') {
     return c.json({ error: 'URL parameter required' }, 400);
   }
   
@@ -85,8 +77,16 @@ app.get('/', async (c) => {
       'Content-Type': contentType || 'application/octet-stream',
     });
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Unknown' }, 500);
+    return c.json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
   }
+});
+
+// Handle OPTIONS for CORS preflight
+app.options('/', (c) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Range');
+  return c.body(null, 204);
 });
 
 export const GET = handle(app);
