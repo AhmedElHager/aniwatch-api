@@ -8,7 +8,7 @@ app.get('/', async (c) => {
   
   if (!url) {
     return c.json({ error: 'URL parameter required' }, 400);
-  }
+n  }
   
   try {
     const decodedUrl = decodeURIComponent(url);
@@ -24,7 +24,8 @@ app.get('/', async (c) => {
     });
     
     if (!response.ok) {
-      return c.json({ error: `Upstream error: ${response.status}` }, response.status);
+      const statusCode = response.status as 200 | 400 | 401 | 403 | 404 | 500;
+      return c.json({ error: `Upstream error: ${response.status}` }, statusCode);
     }
     
     const body = await response.text();
